@@ -1,0 +1,7 @@
+/secrets.py
+*.log
+*.sql
+*.db
+debug.txt
+/debug.txt
+secrets.py
