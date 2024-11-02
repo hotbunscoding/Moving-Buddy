@@ -1,0 +1,19 @@
+11/2/24
+
+Bug Fixes:
+
+- Fixed NoneType issue when Redditor is deleted/removed
+- Fixed SQL writing issue
+- Fixed ChatGPT persistence issue
+
+Miscellaneous:
+
+- Expanded logging to help with debugging
+- Removed redundant RedditBot parent class and Reply(RedditBot) child class (not needed for this project)
+- Added auto_qualified parameter to RedditPost.get_relevant_comments() method. Parameter is used to automatically
+ qualify all comments under a qualified submission since those comments will likely pertain to moving even though there
+  won't be matched terms directly in the comments themselves.
+
+11/01/24
+
+First commit. Not fully functional at this time. Read the README.md for more info.

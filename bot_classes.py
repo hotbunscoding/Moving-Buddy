@@ -1,6 +1,5 @@
 import datetime
 import logging
-
 import praw
 import requests
 import requests.auth
@@ -34,43 +33,122 @@ def check_code(status_code) -> bool:
     else:
         return False
 
-class RedditBot:
-    def __init__(self):
-        self.name = "RedditBot"
+class ChatGPT:
 
-class Reply(RedditBot):
-    def __init__(self):
-        super().__init__()
-        self.dynamic_content: str = ""
-        self.redditors_username = ""
-        self.reply_in_progress: str = ""
-        self.finalized_reply: str = ""
-        self.team_stats = ""
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {chat_gpt_key}",
+    }
+    role = "system"
 
-    def construct_reply(self):
-        self.finalized_reply = (
-            f"Hey there {self.redditors_username}! "
-            f"{self.dynamic_content}"
-            f"Full Stats: {self.team_stats}"
-            "{polls}"
-        )
+    first_prompt = [
+        {
+            "role": role,
+            "content": "You are an assistant helping me look for homes in a certain city. "
+            "I gather relevant comments from the city's subreddit and then will send the comments to you. "
+            "Please analyze these comments and, using your own words, give a summary of what the "
+            "pros and cons are for living in this city",
+        }
+    ]
 
-        return self.finalized_reply
 
-    def add_dynamic_content(self, message_segment: str):
-        self.dynamic_content += message_segment
-
-    def add_team_stats(self, message_segment):
-        self.team_stats += message_segment
-
-    def reset(self):
-        self.reply_in_progress: str = ""
-        self.finalized_reply: str = ""
-
-class SearchReddit(RedditBot):
 
     def __init__(self, city):
-        super().__init__()
+        self.name = "ChatGPT"
+        self.city = city
+        self.history = ChatGPT.first_prompt
+        self.relevant_comments: list = [] # comment instances
+        self.comment_batch: list = []
+        self.initialized: bool = False
+
+    def send_message(self, message):
+        message_json = [{"role": ChatGPT.role, "content": message}]
+
+        payload = {
+            "model": "gpt-3.5-turbo-1106",
+            "messages": message_json if self.initialized else ChatGPT.first_prompt,
+            "max_tokens": 500,
+            "temperature": 0.7,
+        }
+
+        logging.debug(f'Sending message to ChatGPT: {payload["messages"]}')
+
+        self.initialized = True
+
+        response = requests.post(ChatGPT.url, headers=ChatGPT.headers, json=payload)
+
+        if not response.status_code == 200:
+            logging.warning(
+                f"Request failed: {response.status_code}. "
+                f"ChatGPT API may be down at the moment or an error occurred in the request"
+            )
+            return
+        else:
+            chatbot_response = response.json()["choices"][0]["message"][
+                "content"
+            ].strip()
+
+        self.history.append({"role": "user", "content": message})
+        self.history.append({"role": "assistant", "content": chatbot_response})
+
+        print(self.history)
+
+        logging.debug(f'Message received from ChatGPT: {chatbot_response}')
+        print(f"ChatGPT: {chatbot_response}")
+
+    def add_to_batch(self):
+        logging.debug(self.relevant_comments)
+
+        for comment in self.relevant_comments[:3]:
+            self.comment_batch.append(comment.text)
+            logging.debug(f"Batch added: {comment.text}\n")
+        logging.debug(self.comment_batch)
+
+        del self.comment_batch[:3]
+
+    def flush_list(self, forced=False):
+
+        if not len(self.relevant_comments) >= 1000 and not forced:
+            logging.info(
+                f"List flush criteria not met: {len(self.relevant_comments)} is less than 1000. "
+                "Script will try again automatically at a later time."
+            )
+            return False
+        else:
+            logging.info("Saving... ")
+
+            for comment in self.relevant_comments:
+                try:
+                    DB.write('Comments', vars(comment))
+                    logging.debug("Comment saved successfully")
+                except Exception as e:
+                    logging.error(f'An error occurred: {e}. Comment not saved. Continuing...')
+                    continue
+
+            logging.info("Saved to CSV. List flush successful. Returning...")
+            self.relevant_comments.clear()
+
+    def send_batch(self):
+        self.add_to_batch()
+
+        message = "Please analyze the next batch of comments: "
+
+        if len(self.comment_batch) < 4:
+            logging.info(
+                f"Batch criteria not met: {len(self.comment_batch)} is less than 4. "
+                f"Script will try again automatically at a later time."
+            )
+            return False
+        else:
+            logging.info(
+                f"Total comments found: {len(self.comment_batch)}. Attempting to analyze..."
+            )
+            self.send_message(message)
+
+class SearchReddit:
+
+    def __init__(self, city):
         self.session = None
         self.city = city
         self.city_subreddit = "" # testing, should be empty string in prod
@@ -97,7 +175,7 @@ class SearchReddit(RedditBot):
 
         access_token = response.json()['access_token']
 
-        logging.info('Attempting to start Reddit session')
+        logging.info('Attempting to initiate Reddit session...')
 
         self.session = praw.Reddit(
             client_id=reddit_client_id,
@@ -115,13 +193,12 @@ class SearchReddit(RedditBot):
                                 headers=headers)
 
         response.json()
-        print("Got here")
+        logging.info("Reddit connection successful")
         return self.session
 
     def find_subreddit(self) -> tuple[str, bool]:
 
             if self.session is None:
-                logging.error('PRAW session has not yet been initiated. Attempting to initiate now...')
                 self.session = self.authorize_reddit_session()
 
             search_results: list[str] = []
@@ -136,19 +213,24 @@ class SearchReddit(RedditBot):
                     continue
 
             exact_match = False
-            print(search_results)
+            logging.debug(f'Subreddits found: {search_results}')
             self.city_subreddit = search_results[0]
             return self.city_subreddit, exact_match # no exact subreddits found, use first search result found
 
     def scrape_subreddit(self):
         subreddit = self.session.subreddit(self.city_subreddit)
 
+        gpt = ChatGPT("Charlotte")
+
         for submission in subreddit.stream.submissions():
             submission.comments.replace_more()
             reddit_post = RedditPost(submission, type="Submission")
             qualified = reddit_post.qualify_submission()
             reddit_post.add_to_relevant_comments() if qualified else None
-            reddit_post.get_relevant_comments(auto_qualified=True if qualified else False)
+            reddit_post.get_relevant_comments(gpt, auto_qualified=True if qualified else False)
+            gpt.send_batch()
+            gpt.flush_list()
+
 
 class RedditPost:
 
@@ -177,7 +259,9 @@ class RedditPost:
         for term in terms:
             if self.type == "Submission":
                 if term in self.content.title.lower() or term in self.content.selftext.lower():
-                    logging.info(f"{self.content.author.name}'s submission qualified. Term found: {term}")
+                    # there has to be a better way to write these lol
+                    logging.info(f"{self.content.author.name + "'s comment" if self.content.author.name is not None else 
+                    "Error: Unable to find Redditor. Comment"} qualified. Term found: {term}")
                     try: logging.debug(self.content.title.lower())
                     except AttributeError: logging.debug(self.content.selftext.lower())
                     self.qualified = True
@@ -189,7 +273,10 @@ class RedditPost:
 
             else:
                 if term in self.content.body.lower():
-                    logging.info(f"{self.content.author.name}'s comment qualified. Term found: {term}")
+                    # there has to be a better way to write these lol
+                    logging.info(f"{self.content.author.name + "'s comment" if self.content.author.name is not None else 
+                    "Error: Unable to find Redditor. Comment"} qualified. Term found: {term}")
+
                     logging.debug(self.content.body.lower())
                     self.qualified = True
                     # stats.track_match()
@@ -200,13 +287,11 @@ class RedditPost:
 
         return self.qualified
 
-    def get_relevant_comments(self, auto_qualified=False) -> object:
+    def get_relevant_comments(self, gpt, auto_qualified=False):
         """auto_qualified parameter is used to automatically qualify all comments under a qualified submission since
         those comments will likely pertain to moving even though there won't be matched terms"""
 
         logging.info(f"Grabbing comments for: {self.content.title} from {self.content.subreddit}")
-
-        chat = ChatGPT(self.city)
 
         for comment in self.content.comments.list():
             # stats.track_parsed_comments()
@@ -215,115 +300,15 @@ class RedditPost:
             if not qualified and not auto_qualified:
                 continue
             else:
-                DB.write('Comments', vars(reddit_comment))
-                chat.relevant_comments.append(reddit_comment)
+                # DB.write('Comments', vars(reddit_comment))
+                gpt.relevant_comments.append(reddit_comment)
                 continue
-
-        return chat
 
     def add_to_relevant_comments(self):
         chat = ChatGPT(self.city)
         chat.relevant_comments = chat.relevant_comments.append(self.content)
 
-class ChatGPT:
 
-    url = "https://api.openai.com/v1/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {chat_gpt_key}",
-    }
-    role = "system"
-
-    first_prompt = [
-        {
-            "role": role,
-            "content": "You are an assistant helping me look for homes in a certain city. "
-            "I gather relevant comments from the city's subreddit and then will send the comments to you. "
-            "Please analyze these comments and, using your own words, give a summary of what the "
-            "pros and cons are for living in this city",
-        }
-    ]
-
-    def __init__(self, city):
-        self.name = "ChatGPT"
-        self.city = city
-        self.history = ChatGPT.first_prompt
-        self.relevant_comments = [] # comment instances
-        self.comment_batch = []
-        self.initialized = False
-
-    def send_message(self, message):
-        print(self.history, self.initialized)
-
-        message_json = [{"role": ChatGPT.role, "content": message}]
-
-        payload = {
-            "model": "gpt-3.5-turbo-1106",
-            "messages": message_json if self.initialized else ChatGPT.first_prompt,
-            "max_tokens": 500,
-            "temperature": 0.7,
-        }
-
-        self.initialized = True
-
-        response = requests.post(ChatGPT.url, headers=ChatGPT.headers, json=payload)
-
-        if not response.status_code == 200:
-            logging.warning(
-                f"Request failed: {response.status_code}. "
-                f"ChatGPT API may be down at the moment or an error occurred in the request"
-            )
-            return
-        else:
-            chatbot_response = response.json()["choices"][0]["message"][
-                "content"
-            ].strip()
-
-        self.history.append({"role": "user", "content": message})
-        self.history.append({"role": "assistant", "content": chatbot_response})
-
-        print(self.history, self.initialized)
-
-        print(f"ChatGPT: {chatbot_response}")
-
-    def flush_list(self):
-
-        if not len(self.relevant_comments) >= 1000:
-            logging.info(
-                f"List flush criteria not met: {len(self.relevant_comments)} is less than 1000. "
-                "Script will try again automatically at a later time."
-            )
-            return False
-        else:
-            logging.info("Saving... ")
-            try:
-                DB.write('Comments', self.relevant_comments)
-            except Exception as e:
-                logging.error(f'An error occurred: {e}. Returning...')
-                return False
-
-            logging.info("Saved to CSV. List flush successful. Returning...")
-            self.relevant_comments.clear()
-
-    def send_batch(self):
-        logging.info(
-            f"Total comments found: {len(self.comment_batch)}. Attempting to analyze..."
-        )
-
-        message = "Please analyze the next batch of comments: "
-
-        if len(self.comment_batch) < 4:
-            logging.info(
-                f"Batch criteria not met: {len(self.comment_batch)} is less than 4). "
-                f"Script will try again automatically at a later time."
-            )
-            return False
-        else:
-            for comment in self.comment_batch:
-                message += comment
-                message += "\n"
-
-            self.send_message(message)
 
 class Stats:
     def __init__(self):
@@ -512,15 +497,17 @@ class City:
 def main():
     """Main Program loop - START HERE"""
     # city = City(str(input("What city would you like to explore? ")).lower())
-
+    open('debug.txt', 'w').close()
     city = City("Charlotte")
     search = SearchReddit(city.name)
     subreddit, exact_match = search.find_subreddit()
 
-    search.scrape_subreddit()
-
     if not exact_match:
         logging.info(f"No exact subreddits found for: {city}. Showing results for closest found: {subreddit}")
+
+    search.scrape_subreddit()
+
+
 
 if __name__ == '__main__':
     while True:
