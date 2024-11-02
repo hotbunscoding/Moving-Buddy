@@ -1,7 +1,10 @@
 import sqlite3 as sql
 import logging
 
+from praw.models import Comment
+
 from bot_classes import RedditPost, Restaurant, Review, City
+import inspect
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='debug.txt',
@@ -78,6 +81,7 @@ class DB: #Database
 
     @staticmethod
     def write(table, values: list or dict):
+        print(values)
         if not DB.initialized:
             DB.initialize()
 
@@ -101,22 +105,14 @@ class DB: #Database
             logging.error("Table not found. Returning...")
             return
 
-        def check_custom_isinstance(object) -> bool:
-            if isinstance(object, RedditPost) or isinstance(object, Restaurant) or isinstance(object, Review) or isinstance(object, City):
-                return True
-            else:
-                return False
-
         if isinstance(values, dict):
             last_item = list(values.values())[-1]
-            print(last_item)
             data = []
             for value in values.values():
-                if check_custom_isinstance(value):
-                    data.append(str(value))
                 logging.debug(f'Attempting to add {value} to SQL query')
+                print(str(type(value)) + str(value))
                 query += "?, " if last_item != value else "?)"
-                data.append(value)
+                data.append(str(value) if isinstance(value, Comment) else value)
 
             print(data)
             print(query)

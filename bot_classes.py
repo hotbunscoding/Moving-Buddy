@@ -1,16 +1,17 @@
 import datetime
+import logging
+
 import praw
 import requests
 import requests.auth
 from requests.auth import HTTPBasicAuth
-
 from SQL import *
 from secrets import *
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='debug.txt',
                     encoding='utf-8',
-                    level=logging.INFO,
+                    level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s: %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p')
 
@@ -143,12 +144,11 @@ class SearchReddit(RedditBot):
         subreddit = self.session.subreddit(self.city_subreddit)
 
         for submission in subreddit.stream.submissions():
-            print(submission.title, submission.author)
             submission.comments.replace_more()
             reddit_post = RedditPost(submission, type="Submission")
             qualified = reddit_post.qualify_submission()
             reddit_post.add_to_relevant_comments() if qualified else None
-            reddit_post.get_relevant_comments()
+            reddit_post.get_relevant_comments(auto_qualified=True if qualified else False)
 
 class RedditPost:
 
@@ -167,19 +167,19 @@ class RedditPost:
         self.subreddit = self.content.subreddit.display_name
         self.score = self.content.score
         self.text = self.content.body if self.type.lower() == "comment" else self.content.title
-        self.content = str(self.content)
+        # self.content = str(self.content)
 
     def qualify_submission(self) -> bool:
         terms = ['move', 'moving', 'good place to', 'safe to', 'safety', 'unsafe', 'live here', 'living here', 'crime']
 
         # stats.track_parsed_submissions()
-        self.initialize()
-        self.score = 2
-        DB.write('Comments', vars(self))
+
         for term in terms:
             if self.type == "Submission":
                 if term in self.content.title.lower() or term in self.content.selftext.lower():
-                    logging.info(f"{self.redditor}'s submission qualified. Term found: {term}")
+                    logging.info(f"{self.content.author.name}'s submission qualified. Term found: {term}")
+                    try: logging.debug(self.content.title.lower())
+                    except AttributeError: logging.debug(self.content.selftext.lower())
                     self.qualified = True
                     # stats.track_match()
                     self.initialize()
@@ -189,7 +189,8 @@ class RedditPost:
 
             else:
                 if term in self.content.body.lower():
-                    logging.info(f"{self.redditor}'s comment qualified. Term found: {term}")
+                    logging.info(f"{self.content.author.name}'s comment qualified. Term found: {term}")
+                    logging.debug(self.content.body.lower())
                     self.qualified = True
                     # stats.track_match()
                     self.initialize()
@@ -199,20 +200,22 @@ class RedditPost:
 
         return self.qualified
 
-    def get_relevant_comments(self) -> object:
+    def get_relevant_comments(self, auto_qualified=False) -> object:
+        """auto_qualified parameter is used to automatically qualify all comments under a qualified submission since
+        those comments will likely pertain to moving even though there won't be matched terms"""
+
         logging.info(f"Grabbing comments for: {self.content.title} from {self.content.subreddit}")
 
         chat = ChatGPT(self.city)
 
         for comment in self.content.comments.list():
-            print(comment.body)
             # stats.track_parsed_comments()
             reddit_comment = RedditPost(comment, type="Comment")
             qualified = reddit_comment.qualify_submission()
-            DB.write('Comments', vars(reddit_comment))
-            if not qualified:
+            if not qualified and not auto_qualified:
                 continue
             else:
+                DB.write('Comments', vars(reddit_comment))
                 chat.relevant_comments.append(reddit_comment)
                 continue
 
@@ -508,9 +511,9 @@ class City:
 
 def main():
     """Main Program loop - START HERE"""
-    city = City(str(input("What city would you like to explore? ")).lower())
+    # city = City(str(input("What city would you like to explore? ")).lower())
 
-    print(city.name)
+    city = City("Charlotte")
     search = SearchReddit(city.name)
     subreddit, exact_match = search.find_subreddit()
 
@@ -520,4 +523,5 @@ def main():
         logging.info(f"No exact subreddits found for: {city}. Showing results for closest found: {subreddit}")
 
 if __name__ == '__main__':
-    main()
+    while True:
+        main()
