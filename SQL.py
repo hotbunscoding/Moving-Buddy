@@ -102,20 +102,20 @@ class DB: #Database
         elif table.lower() == "reviews":
             query = reviews_query
         else:
-            logging.error("Table not found. Returning...")
+            logging.error(f"Table {table} not found. Returning...")
             return
 
         if isinstance(values, dict):
             last_item = list(values.values())[-1]
             data = []
+            logging.debug(f'Attempting to add {values.values()} to SQL query. Last item: {last_item}')
+
             for value in values.values():
-                logging.debug(f'Attempting to add {value} to SQL query')
                 print(str(type(value)) + str(value))
-                query += "?, " if last_item != value else "?)"
+                query += "?, " if last_item is not value else "?)"
                 data.append(str(value) if isinstance(value, Comment) else value)
 
             print(data)
-            print(query)
             cursor.execute(query, data)
 
         else:

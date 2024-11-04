@@ -1,3 +1,15 @@
+11/4/24
+
+Bug Fixes:
+
+- Fixed RedditPost not sending over message batches to ChatGPT properly
+- Fixed not being able to write to the database when Reddit comment/submission has a score of zero or one
+- Fixed minor issue where RedditPost object would appear in logs instead of helpful information about the comment
+
+Improvements:
+
+- Added string representation for RedditPost object to increase log readability
+
 11/2/24
 
 Bug Fixes:
@@ -6,7 +18,7 @@ Bug Fixes:
 - Fixed SQL writing issue
 - Fixed ChatGPT persistence issue
 
-Miscellaneous:
+Improvements:
 
 - Expanded logging to help with debugging
 - Removed redundant RedditBot parent class and Reply(RedditBot) child class (not needed for this project)

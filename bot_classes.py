@@ -4,6 +4,7 @@ import praw
 import requests
 import requests.auth
 from requests.auth import HTTPBasicAuth
+import re
 from SQL import *
 from secrets import *
 
@@ -57,13 +58,15 @@ class ChatGPT:
     def __init__(self, city):
         self.name = "ChatGPT"
         self.city = city
-        self.history = ChatGPT.first_prompt
+        self.history: list[dict] = []
         self.relevant_comments: list = [] # comment instances
         self.comment_batch: list = []
         self.initialized: bool = False
 
     def send_message(self, message):
         message_json = [{"role": ChatGPT.role, "content": message}]
+
+        logging.debug(message_json)
 
         payload = {
             "model": "gpt-3.5-turbo-1106",
@@ -73,7 +76,6 @@ class ChatGPT:
         }
 
         logging.debug(f'Sending message to ChatGPT: {payload["messages"]}')
-
         self.initialized = True
 
         response = requests.post(ChatGPT.url, headers=ChatGPT.headers, json=payload)
@@ -92,8 +94,6 @@ class ChatGPT:
         self.history.append({"role": "user", "content": message})
         self.history.append({"role": "assistant", "content": chatbot_response})
 
-        print(self.history)
-
         logging.debug(f'Message received from ChatGPT: {chatbot_response}')
         print(f"ChatGPT: {chatbot_response}")
 
@@ -105,10 +105,10 @@ class ChatGPT:
             logging.debug(f"Batch added: {comment.text}\n")
         logging.debug(self.comment_batch)
 
-        del self.comment_batch[:3]
+        del self.relevant_comments[:3]
 
     def flush_list(self, forced=False):
-
+        logging.info("Attempting list flush")
         if not len(self.relevant_comments) >= 1000 and not forced:
             logging.info(
                 f"List flush criteria not met: {len(self.relevant_comments)} is less than 1000. "
@@ -133,7 +133,7 @@ class ChatGPT:
         self.add_to_batch()
 
         message = "Please analyze the next batch of comments: "
-
+        logging.debug(f"Current comment batch: {self.comment_batch}")
         if len(self.comment_batch) < 4:
             logging.info(
                 f"Batch criteria not met: {len(self.comment_batch)} is less than 4. "
@@ -141,9 +141,15 @@ class ChatGPT:
             )
             return False
         else:
+            for comment in self.comment_batch:
+                message += ", " + comment if not self.comment_batch[0] else comment
+
             logging.info(
                 f"Total comments found: {len(self.comment_batch)}. Attempting to analyze..."
             )
+
+            logging.debug(message)
+
             self.send_message(message)
 
 class SearchReddit:
@@ -197,6 +203,8 @@ class SearchReddit:
         return self.session
 
     def find_subreddit(self) -> tuple[str, bool]:
+            """Looks for a given city's subreddit. If there is an exact match, returns True, else returns False.
+            If there is not an exact match found, returns the closest matching subreddit"""
 
             if self.session is None:
                 self.session = self.authorize_reddit_session()
@@ -204,7 +212,7 @@ class SearchReddit:
             search_results: list[str] = []
 
             for subreddit in self.session.subreddits.search_by_name(self.city):
-                if self.city == subreddit.display_name.lower():
+                if self.city.lower() == subreddit.display_name.lower():
                     self.city_subreddit = subreddit.display_name
                     exact_match = True
                     return self.city_subreddit, exact_match
@@ -225,6 +233,7 @@ class SearchReddit:
         for submission in subreddit.stream.submissions():
             submission.comments.replace_more()
             reddit_post = RedditPost(submission, type="Submission")
+            reddit_post.initialize()
             qualified = reddit_post.qualify_submission()
             reddit_post.add_to_relevant_comments() if qualified else None
             reddit_post.get_relevant_comments(gpt, auto_qualified=True if qualified else False)
@@ -244,12 +253,14 @@ class RedditPost:
         self.score: int = 2
         self.qualified: bool = False
 
+    def __str__(self):
+        return f"Redditor: {self.redditor}, Comment Snip: {self.text[:25]} Type: {self.type}"
+
     def initialize(self) -> None:
         self.redditor = self.content.author.name
         self.subreddit = self.content.subreddit.display_name
         self.score = self.content.score
         self.text = self.content.body if self.type.lower() == "comment" else self.content.title
-        # self.content = str(self.content)
 
     def qualify_submission(self) -> bool:
         terms = ['move', 'moving', 'good place to', 'safe to', 'safety', 'unsafe', 'live here', 'living here', 'crime']
@@ -276,7 +287,6 @@ class RedditPost:
                     # there has to be a better way to write these lol
                     logging.info(f"{self.content.author.name + "'s comment" if self.content.author.name is not None else 
                     "Error: Unable to find Redditor. Comment"} qualified. Term found: {term}")
-
                     logging.debug(self.content.body.lower())
                     self.qualified = True
                     # stats.track_match()
@@ -291,7 +301,10 @@ class RedditPost:
         """auto_qualified parameter is used to automatically qualify all comments under a qualified submission since
         those comments will likely pertain to moving even though there won't be matched terms"""
 
-        logging.info(f"Grabbing comments for: {self.content.title} from {self.content.subreddit}")
+        logging.info(f"Grabbing comments for post. Info:\n{self}")
+
+        if auto_qualified:
+            logging.info(f"{auto_qualified=} . All comments underneath this submission automatically qualify")
 
         for comment in self.content.comments.list():
             # stats.track_parsed_comments()
@@ -300,7 +313,8 @@ class RedditPost:
             if not qualified and not auto_qualified:
                 continue
             else:
-                # DB.write('Comments', vars(reddit_comment))
+                reddit_comment.initialize()
+                DB.write('Comments', vars(reddit_comment))
                 gpt.relevant_comments.append(reddit_comment)
                 continue
 
@@ -493,6 +507,9 @@ class City:
         self.grocery: list = [] # list of grocery instances
         self.reddit: list = []  # list of RedditPost post/comment instances
         self.gpt: str = ""  # ChatGPT's analysis and summary of relevant Reddit comments
+
+    def __str__(self):
+        return self.name
 
 def main():
     """Main Program loop - START HERE"""
