@@ -1,10 +1,6 @@
 import sqlite3 as sql
 import logging
-
 from praw.models import Comment
-
-from bot_classes import RedditPost, Restaurant, Review, City
-import inspect
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='debug.txt',

@@ -240,7 +240,6 @@ class SearchReddit:
             gpt.send_batch()
             gpt.flush_list()
 
-
 class RedditPost:
 
     def __init__(self, content, type=""):
@@ -250,7 +249,7 @@ class RedditPost:
         self.type: str = type
         self.redditor: str = ''
         self.subreddit: str = ''
-        self.score: int = 2
+        self.score: int = 0
         self.qualified: bool = False
 
     def __str__(self):
@@ -321,8 +320,6 @@ class RedditPost:
     def add_to_relevant_comments(self):
         chat = ChatGPT(self.city)
         chat.relevant_comments = chat.relevant_comments.append(self.content)
-
-
 
 class Stats:
     def __init__(self):
@@ -483,6 +480,59 @@ class Restaurant:
         self.category: str = category
         self.reviews: list = []  # list of review instances
 
+class Hospital:
+
+    table = "Hospitals"
+
+    def __init__(
+        self,
+        places_id,
+        address,
+        rating,
+        website,
+        review_count,
+        name,
+        category,
+    ):
+
+        self.places_id: str = places_id
+        self.address: str = address
+        self.rating: float = rating
+        self.website: str = website
+        self.review_count: int = review_count
+        self.name: str = name
+        self.category: str = category
+        self.reviews: list = []  # list of review instances
+
+class Grocery:
+    table = "Grocery"
+
+    def __init__(self, places_id,
+        address,
+        rating,
+        website,
+        review_count,
+        name,
+        category,
+        price_range
+    ):
+
+        self.places_id: str = places_id
+        self.address: str = address
+        self.rating: float = rating
+        self.website: str = website
+        self.review_count: int = review_count
+        self.name: str = name
+        self.category: str = category
+        self.reviews: list = []  # list of review instances
+        self.price_range: str = price_range
+
+class House:
+    table = "House"
+
+    def __init__(self, address, link, picture, desc, beds, bath, sqft):
+        pass
+
 class Review:
 
     table = "Reviews"
@@ -523,6 +573,8 @@ def main():
         logging.info(f"No exact subreddits found for: {city}. Showing results for closest found: {subreddit}")
 
     search.scrape_subreddit()
+
+    
 
 
 
