@@ -1,13 +1,26 @@
 import json
 import requests
 from bs4 import BeautifulSoup
-from bot_classes import RedditPost, City
 
 headers = {
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36",
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
         "accept-language": "en-US;en;q=0.9",
         "accept-encoding": "gzip, deflate"}
+
+class Home:
+    table = "Homes"
+
+    def __init__(self, address, link, desc, beds, bath, sqft, price, pictures, available):
+        self.address: str = address
+        self.link: str = link
+        self.desc: str = desc
+        self.beds: int = beds
+        self.bath: int = bath
+        self.sqft: int = sqft
+        self.price: int = price
+        self.pictures: list[dict] = pictures  # JSON data that contains picture links. Dict keys sorted by size
+        self.available: bool = available
 
 class Trulia:
 
@@ -16,15 +29,16 @@ class Trulia:
     base_url = "https://www.trulia.com"
     # URL Format: https://www.trulia.com/{state abbreviation}/{city}
 
-    def __init__(self):
-       pass
+    def __init__(self, city, state):
+        self.city: str = city
+        self.state: str = state
+        self.data: list[dict] = []
 
-    def initialize(self):
-        pass
+    def __str__(self):
+        return f"Trulia Scraper. Current city: {self.city}, {self.state}"
 
-    @staticmethod
-    def search(state, city):
-        base_url = "/".join([Trulia.base_url, state, city])
+    def search(self):
+        base_url = "/".join([Trulia.base_url, self.state, self.city])
         request = requests.get(base_url, headers=headers)
         soup = BeautifulSoup(request.content, 'html5lib')
 
@@ -35,25 +49,21 @@ class Trulia:
 
         raw_data = json.loads(table)
 
-        return raw_data["props"]['searchData']['homes']
+        # ['searchData']['homes']
+        self.data = raw_data["props"]
 
-    def add_to_spreadsheet(self):
-        data = {"Name": self.short_name, "Price": self.price, "Aisle": self.aisle, "Is Out of Stock?": self.is_out_of_stock,
-                      "Rating": self.rating, "Review Count": self.review_count, "Category": self.category,
-                      "Full Name": self.long_name, "Image Link": self.image, "Item Instance": self}
+        return self.data
 
-        csv_file = "item_reference.csv"
-
+    def initialize_homes(self):
+        for home in self.data['searchData']['homes']:
+            home = Home(home['location']['streetAddress'], home['url'])
 
 
 def main():
-    charlotte = Trulia()
+    charlotte = Trulia("NC", "Charlotte")
 
-    x = charlotte.search("NC", "Charlotte")
-    print(x)
-    for i in x:
-        print(i[['price']['price']])
-        print(i[["url"]])
+    x = charlotte.search()
+
 
 if __name__ == "__main__":
     main()

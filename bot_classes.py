@@ -1,12 +1,11 @@
 import datetime
-import logging
 import praw
 import requests
 import requests.auth
 from requests.auth import HTTPBasicAuth
-import re
 from SQL import *
 from secrets import *
+from trulia import Trulia, Home
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='debug.txt',
@@ -351,16 +350,6 @@ class Stats:
         self.parsed_submissions_count = 0
         self.parsed_comments_count = 0
 
-class Maps:
-    # Google Maps
-    maps_url = "https://maps.googleapis.com/maps/api/directions/"
-
-    # maps = googlemaps.Client(key=key)
-    def __init__(self):
-        self.name = "Google Maps"
-        self.destination = ""
-        self.origin = ""
-
 class Places:
     # Google Places
 
@@ -527,12 +516,6 @@ class Grocery:
         self.reviews: list = []  # list of review instances
         self.price_range: str = price_range
 
-class House:
-    table = "House"
-
-    def __init__(self, address, link, picture, desc, beds, bath, sqft):
-        pass
-
 class Review:
 
     table = "Reviews"
@@ -550,22 +533,24 @@ class City:
 
     table = "Cities"
 
-    def __init__(self, name):
+    def __init__(self, name, state):
         self.name: str = name
-        self.restaurants: list = []  # list of restaurant instances
-        self.hospitals: list = []  # list of hospital instances
-        self.grocery: list = [] # list of grocery instances
-        self.reddit: list = []  # list of RedditPost post/comment instances
+        self.state: str = state # abbreviation
+        self.restaurants: list = []  # restaurant instances
+        self.hospitals: list = []  # hospital instances
+        self.grocery: list = [] # grocery instances
+        self.reddit: list = []  # RedditPost post/comment instances
+        self.homes: list = [] # home instances
         self.gpt: str = ""  # ChatGPT's analysis and summary of relevant Reddit comments
 
     def __str__(self):
-        return self.name
+        return self.name + ", " + self.state
 
-def main():
+def reddit():
     """Main Program loop - START HERE"""
     # city = City(str(input("What city would you like to explore? ")).lower())
     open('debug.txt', 'w').close()
-    city = City("Charlotte")
+    city = City("Charlotte", "NC")
     search = SearchReddit(city.name)
     subreddit, exact_match = search.find_subreddit()
 
@@ -574,10 +559,13 @@ def main():
 
     search.scrape_subreddit()
 
-    
-
+def main():
+    open('debug.txt', 'w').close()
+    city = City("Charlotte", "NC")
+    trulia = Trulia("Charlotte", "NC")
+    trulia.search()
+    trulia.initialize_homes()
 
 
 if __name__ == '__main__':
-    while True:
-        main()
+    main()
