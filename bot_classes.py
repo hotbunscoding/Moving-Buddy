@@ -562,9 +562,8 @@ def reddit():
 def main():
     open('debug.txt', 'w').close()
     city = City("Charlotte", "NC")
-    trulia = Trulia("Charlotte", "NC")
+    trulia = Trulia(city.name, "NC")
     trulia.search()
-    trulia.initialize_homes()
 
 
 if __name__ == '__main__':
