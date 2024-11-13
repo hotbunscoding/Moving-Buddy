@@ -6,6 +6,8 @@ from requests.auth import HTTPBasicAuth
 from SQL import *
 from secrets import *
 from trulia import Trulia, Home
+from final_results import *
+
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='debug.txt',
@@ -532,6 +534,7 @@ class Review:
 class City:
 
     table = "Cities"
+    results = FinalResults()
 
     def __init__(self, name, state):
         self.name: str = name
@@ -542,6 +545,7 @@ class City:
         self.reddit: list = []  # RedditPost post/comment instances
         self.homes: list = [] # home instances
         self.gpt: str = ""  # ChatGPT's analysis and summary of relevant Reddit comments
+        self.score: int = 0
 
     def __str__(self):
         return self.name + ", " + self.state
@@ -564,6 +568,7 @@ def main():
     city = City("Charlotte", "NC")
     trulia = Trulia(city.name, "NC")
     trulia.search()
+
 
 
 if __name__ == '__main__':

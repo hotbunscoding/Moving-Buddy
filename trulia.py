@@ -12,6 +12,7 @@ headers = {
         "accept-encoding": "gzip, deflate"}
 
 class Home:
+
     table = "Homes"
 
     def __init__(self, address, city, state, zip_code, link, desc, beds, bath, sqft, price, front_pic, available):
@@ -28,6 +29,7 @@ class Home:
         # self.pictures: list[dict] = pictures # JSON data that contains picture links. Dict keys sorted by size
         self.front_pic: dict = front_pic
         self.available: bool = available
+        self.score: int = 0
 
     def __str__(self):
         return self.address
@@ -45,20 +47,55 @@ class Trulia:
 
     table = "Trulia"
 
-    base_url = "https://www.trulia.com"
     # URL Format: https://www.trulia.com/{state abbreviation}/{city}
 
     def __init__(self, city, state):
         self.city: str = city
         self.state: str = state
+        self.base_url = "https://www.trulia.com"
         self.data: dict = {}
+        self.current_link: str = "/".join(["https://www.trulia.com", self.state, self.city])
+        self.current_page: int = 1
+        self.on_last_page: bool = False
 
     def __str__(self):
         return f"Trulia Scraper. Current City: {self.city}, {self.state}"
 
+    def go_to_next_page(self, soup):
+        """Trulia will have the link to the next page under the following elements.
+        If no elements are found, then we have reached the last page, and we return.
+        Otherwise, we conduct another search"""
+        self.current_page += 1
+
+        nav = soup.find("nav", attrs={'aria-label': 'search results pagination'})
+        nav = nav.find("li", attrs={'data-testid': "pagination-next-page"})
+        self.current_link = self.base_url + nav.find_all("a", href=True)[0]['href'] if not None else ""
+
+        if not nav:
+            self.on_last_page = True
+            return
+        else:
+            self.on_last_page = False
+            self.search()
+
     def search(self):
-        base_url = "/".join([Trulia.base_url, self.state, self.city])
-        request = requests.get(base_url, headers=headers)
+
+        tries: int = 0
+        while tries <= 5:
+            # There can occasionally be a connection issue in making the request.
+            # This loop and try statement ensures that we continue trying even if we get the connection issue
+            try:
+                request = requests.get(self.current_link, headers=headers)
+                break
+            except requests.exceptions.ConnectionError as e:
+                tries += 1
+                logging.error(f"Unable to load page: {e}.\nTries Remaining: {5 - tries}")
+                continue
+
+        if tries > 5:
+            logging.error("Trulia request failed. No data will be obtained on homes.")
+            return
+
         soup = BeautifulSoup(request.content, 'html5lib')
 
         table = soup.find('script', attrs={'id': '__NEXT_DATA__'}).string
@@ -67,12 +104,13 @@ class Trulia:
         table = table.replace("<script id=\"__NEXT_DATA__\" type=\"application/json\" nonce="">", "")
 
         raw_data = json.loads(table)
-
-        # ['searchData']['homes']
         self.data = raw_data["props"]
         self.initialize_homes()
 
-        return self.data
+        while not self.on_last_page:
+            logging.info(f"Going to next page. Current page: {self.current_page}")
+            self.go_to_next_page(soup)
+
 
     def initialize_homes(self):
         logging.debug("Initializing homes...")
@@ -88,16 +126,10 @@ class Trulia:
                             home['price']['price'],  home['media']['heroImage']['url']['medium'], home['currentStatus']['isActiveForSale'])
 
                 # print(home.zip_code + " " + home.city + " " + home.state + " " + home.address)
-            except TypeError as e:
+            except (TypeError, KeyError) as e:
                 logging.info(f"Item not found: {e}")
                 continue
 
-            print(home.front_pic)
-
-
-            print(vars(home))
-            print("Debugging: " + str(type(vars(home))))
-            print(vars(picture))
             DB.write("Homes", vars(home))
 
 

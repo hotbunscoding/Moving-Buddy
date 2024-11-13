@@ -50,7 +50,8 @@ class DB: #Database
                       "hospitals CHAR(50), "
                       "grocery CHAR(50), "
                       "reddit CHAR(50), "
-                      "gpt CHAR(50))")
+                      "gpt CHAR(50),"
+                      "score INTEGER)")
 
             comments = ("CREATE TABLE IF NOT EXISTS Comments ("
                       "Object VARCHAR(25), "
@@ -74,7 +75,8 @@ class DB: #Database
                         "Sqft INTEGER,"
                         "Price INTEGER,"
                         "Front_Pic VARCHAR(150),"
-                        "Available BOOLEAN)")
+                        "Available BOOLEAN,"
+                        "Score INTEGER)")
 
             cursor.execute(restaurants)
             cursor.execute(reviews)
@@ -92,7 +94,6 @@ class DB: #Database
 
     @staticmethod
     def write(table, values: list or dict):
-        print(values)
         if not DB.initialized:
             DB.initialize()
 
@@ -126,11 +127,8 @@ class DB: #Database
             logging.debug(f'Attempting to add {values.values()} to SQL query. Last item: {last_item}')
 
             for value in values.values():
-                print(str(type(value)) + str(value))
                 query += "?, " if last_item is not value else "?)"
                 data.append(str(value) if isinstance(value, Comment) else value)
-            print("Data:")
-            print(data)
             cursor.execute(query, data)
 
         else:
