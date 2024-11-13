@@ -4,7 +4,7 @@ The main purpose of this project is to help people research for moving to differ
 
 This program will use a variety of sources to determine city desirability including Reddit, ChatGPT, Trulia, Google Places and Directions APIFuture roadmap is to support compartmentalization of features to allow users to only use one feature at a time. Current functionality is to ask users for a city and then run all the features mentioned above.
 
-** Current Functionality: **
+**Current Functionality:**
 
 Reddit Comment Collection - Functional
 
@@ -14,7 +14,7 @@ Google Places - Functional, needs to be integrated
 
 SQL Features - Mostly functional
 
-** Roadmap: **
+**Roadmap:**
 
 Google Maps - Collect and search for a list of desirable City attributes. Collect general distance, distance to each other, and distance to home or City center
 More robust functionality in general
