@@ -1,20 +1,209 @@
+from email.policy import default
+
 import googlemaps
-from secrets import places_api_key
+from secrets import places_api_key, places_secret, places_client_id
 from datetime import datetime
 from unit_convert import UnitConvert
+import requests
+from requests.auth import HTTPBasicAuth
+import logging
+from SQL import check
 
 now = datetime.now()
 maps = googlemaps.Client(key=places_api_key)
 
-''' class Maps:
-    # Google Maps
-   #  maps_url = "https://maps.googleapis.com/maps/api/directions/"
+def check_code(status_code) -> bool:
+    if status_code == 200:
+        logging.info(f"Request successful: {status_code}")
+        return True
+    elif status_code == 401:
+        logging.error(f"Request unauthorized: {status_code}")
+        return False
+    elif status_code == 403:
+        logging.error(f"Request forbidden: {status_code}")
+        return False
+    elif status_code == 404:
+        logging.error(f"Request Not Found: {status_code}")
+        return False
+    elif status_code == 500:
+        logging.error(f"Request server error: {status_code}")
+        return False
+    else:
+        return False
 
-    maps = googlemaps.Client(key=places_api_key)
-    def __init__(self):
-        self.name = "Google Maps"
-        self.destination = ""
-        self.origin = "" '''
+class GooglePlaces:
+    # Google Places
+
+    places_url = "https://places.googleapis.com/v1/places:searchText"  # &key=YOUR_API_KEY at the end of every URL
+
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": f"Bearer {places_api_key}",
+    }
+
+    fields = (
+        "places.id,places.displayName.text,places.primaryTypeDisplayName.text,places.formattedAddress,"
+        "places.rating,places.websiteUri,places.priceLevel,places.userRatingCount,places.reviews"
+    )
+
+    def __init__(self, city):
+        self.city = city  # city instance
+
+    def __str__(self):
+        return "Google Places Searcher. Current city: " + self.city.name
+
+    def search(self, term):
+        # 'PRICE_LEVEL_INEXPENSIVE' == $1 - 10, 'PRICE_LEVEL_MODERATE' == $10 - 20
+
+        response = requests.post(
+            GooglePlaces.places_url,
+            headers=GooglePlaces.headers,
+            params={"key": places_api_key, "fields": GooglePlaces.fields},
+            auth=HTTPBasicAuth(places_client_id, places_secret),
+            data=str({"textQuery": term + " in  " + self.city.name})
+        )
+
+        if not check_code(response.status_code):
+            return False
+
+        # Handle the response
+        response = response.json()["places"]
+
+        for restaurant_entry in response:
+
+
+            restaurant = Restaurant(
+                restaurant_entry.get("id"),
+                restaurant_entry.get("formattedAddress"),
+                restaurant_entry.get("rating"),
+                restaurant_entry.get("websiteUri"),
+                restaurant_entry.get("priceLevel"),
+                restaurant_entry.get("userRatingCount"),
+                restaurant_entry.get("displayName", {}).get("text"),
+                restaurant_entry.get("primaryTypeDisplayName", {}).get("text")
+            )
+
+            self.city.restaurants.append(restaurant)
+
+            print(restaurant.category)
+
+            for i in vars(restaurant).values(): print(i)
+
+            reviews = restaurant_entry["reviews"]
+
+            for review in reviews:
+
+                review = Review(
+                    review.get("name"),
+                    review.get("relativePublishTimeDescription"),
+                    review.get("rating"),
+                    review.get("text", "").get("text"),
+                    review.get("authorAttribution", {}).get("displayName"),
+                    review.get("authorAttribution", {}).get("photoUri"),
+                    review.get("googleMapsUri")
+                )
+
+                restaurant.reviews.append(review)
+                for i in vars(review).values(): print(i)
+
+            print(restaurant_entry)
+
+    def grocery(self):
+        pass
+
+    def hospitals(self):
+        pass
+
+    def search_all(self):
+        pass
+
+
+class Restaurant:
+
+    table = "Restaurants"
+
+    def __init__(
+        self,
+        places_id,
+        address,
+        rating,
+        website,
+        price_range,
+        review_count,
+        name,
+        category,
+    ):
+
+        self.places_id: str = places_id
+        self.address: str = address
+        self.rating: float = rating
+        self.website: str = website
+        self.price_range: str = price_range
+        self.review_count: int = review_count
+        self.name: str = name
+        self.category: str = category
+        self.reviews: list = []  # list of review instances
+
+class Hospital:
+
+    table = "Hospitals"
+
+    def __init__(
+        self,
+        places_id,
+        address,
+        rating,
+        website,
+        review_count,
+        name,
+        category,
+    ):
+
+        self.places_id: str = places_id
+        self.address: str = address
+        self.rating: float = rating
+        self.website: str = website
+        self.review_count: int = review_count
+        self.name: str = name
+        self.category: str = category
+        self.reviews: list = []  # list of review instances
+
+class Grocery:
+    table = "Grocery"
+
+    def __init__(self, places_id,
+        address,
+        rating,
+        website,
+        review_count,
+        name,
+        category,
+        price_range
+    ):
+
+        self.places_id: str = places_id
+        self.address: str = address
+        self.rating: float = rating
+        self.website: str = website
+        self.review_count: int = review_count
+        self.name: str = name
+        self.category: str = category
+        self.reviews: list = []  # list of review instances
+        self.price_range: str = price_range
+
+class Review:
+
+    table = "Reviews"
+
+    def __init__(self, places_id, posted, rating, text, author, photo, link):
+        self.places_id: str = places_id
+        self.posted: str = posted
+        self.rating: float = rating
+        self.text: str = text
+        self.author: str = author
+        self.photo: str = photo
+        self.link: str = link
 
 class Score:
     """Score parent class will be used to calculate desirability among locations based on proximity.
@@ -27,14 +216,13 @@ class Score:
         self.overall_score: int = 0
 
 
-
 class CalculateScore:
 
     def __init__(self, origin, destination):
         self.origin = origin
         self.destination = destination
 
-    def walking_score(self) -> int:
+    def walking_score(self) -> int or None:
         directions_result = maps.directions(origin=self.origin,
                                             destination=self.destination,
                                             departure_time=now,
@@ -42,9 +230,13 @@ class CalculateScore:
 
         score: int = 0
 
-        distance: int = directions_result['legs'][0]['distance']['value']  # in meters
-        duration: int = directions_result['legs'][0]['duration']['value']  # in seconds
-        warnings: str = directions_result['warnings']
+        try:
+            distance: int = directions_result['legs'][0]['distance']['value']  # in meters
+            duration: int = directions_result['legs'][0]['duration']['value']  # in seconds
+            warnings: str = directions_result['warnings']
+        except KeyError as e:
+            logging.error(f"Unable to calculate walking score: {e}")
+            return
 
         print(duration)
 
@@ -63,7 +255,7 @@ class CalculateScore:
 
         return score
 
-    def driving_score(self) -> int:
+    def driving_score(self) -> int or None:
         """Should add a disclaimer that this score is if the user were to leave right at this moment and may not
         reflect the necessarily best or worst conditions"""
 
@@ -71,9 +263,12 @@ class CalculateScore:
                                             destination=self.destination,
                                             departure_time=now,
                                             mode="driving")[0]
-
-        distance: int = directions_result['legs'][0]['distance']['value']  # in meters
-        duration: int = directions_result['legs'][0]['duration']['value']  # in seconds
+        try:
+            distance: int = directions_result['legs'][0]['distance']['value']  # in meters
+            duration: int = directions_result['legs'][0]['duration']['value']  # in seconds
+        except KeyError as e:
+            logging.error(f"Unable to calculate driving score: {e}")
+            return
 
         score: int = 0 # out of 10
 
@@ -102,17 +297,12 @@ class CalculateScore:
 
         return score
 
-
-
-
-
 # Place IDs must be prefixed with place_id:
-
 
 def main():
     calculator = CalculateScore("Dunn, North Carolina 28334",
                                 "Whole Foods Market, 8710 Six Forks Rd, Raleigh, NC 27615")
-    print(calculator.driving_score())
+    print(calculator.driving_score() if not None else "Error: Couldn't calculate driving score")
 
 if __name__ == '__main__':
     main()

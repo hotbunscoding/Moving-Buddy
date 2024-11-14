@@ -2,8 +2,8 @@ import datetime
 import praw
 import requests
 import requests.auth
-from requests.auth import HTTPBasicAuth
 from SQL import *
+from gmaps import GooglePlaces
 from secrets import *
 from trulia import Trulia, Home
 from final_results import *
@@ -16,24 +16,12 @@ logging.basicConfig(filename='debug.txt',
                     format='%(asctime)s %(levelname)s: %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p')
 
-def check_code(status_code) -> bool:
-    if status_code == 200:
-        logging.info(f"Request successful: {status_code}")
-        return True
-    elif status_code == 401:
-        logging.error(f"Request unauthorized: {status_code}")
-        return False
-    elif status_code == 403:
-        logging.error(f"Request forbidden: {status_code}")
-        return False
-    elif status_code == 404:
-        logging.error(f"Request Not Found: {status_code}")
-        return False
-    elif status_code == 500:
-        logging.error(f"Request server error: {status_code}")
-        return False
+
+def check(characteristic) -> str:
+    if KeyError or TypeError:
+        return "Not found"
     else:
-        return False
+        return characteristic
 
 class ChatGPT:
 
@@ -352,184 +340,6 @@ class Stats:
         self.parsed_submissions_count = 0
         self.parsed_comments_count = 0
 
-class Places:
-    # Google Places
-
-    places_url = "https://places.googleapis.com/v1/places:searchText"  # &key=YOUR_API_KEY at the end of every URL
-
-    headers = {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Authorization": f"Bearer {places_api_key}",
-    }
-
-    fields = (
-        "places.id,places.displayName.text,places.primaryTypeDisplayName.text,places.formattedAddress,"
-        "places.rating,places.websiteUri,places.priceLevel,places.userRatingCount,places.reviews"
-    )
-
-    def __init__(self, city):
-        self.name = "Google Places"
-        self.city = city  # city instance
-        self.url = ""
-
-    def restaurants(self):
-        # 'PRICE_LEVEL_INEXPENSIVE' == $1 - 10, 'PRICE_LEVEL_MODERATE' == $10 - 20
-        # Initialize request argument(s)
-        response = requests.post(
-            Places.places_url,
-            headers=Places.headers,
-            params={"key": places_api_key, "fields": Places.fields},
-            auth=HTTPBasicAuth(places_client_id, places_secret),
-            data='{"textQuery": "Hospitals in ' + self.city.name + '"}',
-        )
-
-        if not check_code(response.status_code):
-            return False
-
-        # Handle the response
-        response = response.json()["places"]
-
-        for restaurant_entry in response:
-            try:
-                restaurant = Restaurant(
-                    restaurant_entry["id"],
-                    restaurant_entry["formattedAddress"],
-                    restaurant_entry["rating"],
-                    restaurant_entry["websiteUri"],
-                    restaurant_entry["priceLevel"],
-                    restaurant_entry["userRatingCount"],
-                    restaurant_entry["displayName"]["text"],
-                    restaurant_entry["primaryTypeDisplayName"]["text"],
-                )
-
-                self.city.append(restaurant)
-
-                print(restaurant.category)
-
-            except KeyError as e:
-                logging.error(f"Restaurant not saved - KeyError: {e}")
-                continue
-
-            reviews = restaurant_entry["reviews"]
-
-            for review in reviews:
-
-                try:
-                    review = Review(
-                        review["name"],
-                        review["relativePublishTimeDescription"],
-                        review["rating"],
-                        review["text"]["text"],
-                        review["authorAttribution"]["displayName"],
-                        review["authorAttribution"]["photoUri"],
-                        review["googleMapsUri"],
-                    )
-
-                    print(dir(review))
-                except KeyError as e:
-                    logging.error(f"Review not saved - KeyError: {e}")
-                    continue
-
-                restaurant.reviews.append(review)
-                print(review.text)
-
-            print(restaurant_entry)
-
-    def grocery(self):
-        pass
-
-    def hospitals(self):
-        pass
-
-    def search_all(self):
-        pass
-
-class Restaurant:
-
-    table = "Restaurants"
-
-    def __init__(
-        self,
-        places_id,
-        address,
-        rating,
-        website,
-        price_range,
-        review_count,
-        name,
-        category,
-    ):
-
-        self.places_id: str = places_id
-        self.address: str = address
-        self.rating: float = rating
-        self.website: str = website
-        self.price_range: str = price_range
-        self.review_count: int = review_count
-        self.name: str = name
-        self.category: str = category
-        self.reviews: list = []  # list of review instances
-
-class Hospital:
-
-    table = "Hospitals"
-
-    def __init__(
-        self,
-        places_id,
-        address,
-        rating,
-        website,
-        review_count,
-        name,
-        category,
-    ):
-
-        self.places_id: str = places_id
-        self.address: str = address
-        self.rating: float = rating
-        self.website: str = website
-        self.review_count: int = review_count
-        self.name: str = name
-        self.category: str = category
-        self.reviews: list = []  # list of review instances
-
-class Grocery:
-    table = "Grocery"
-
-    def __init__(self, places_id,
-        address,
-        rating,
-        website,
-        review_count,
-        name,
-        category,
-        price_range
-    ):
-
-        self.places_id: str = places_id
-        self.address: str = address
-        self.rating: float = rating
-        self.website: str = website
-        self.review_count: int = review_count
-        self.name: str = name
-        self.category: str = category
-        self.reviews: list = []  # list of review instances
-        self.price_range: str = price_range
-
-class Review:
-
-    table = "Reviews"
-
-    def __init__(self, places_id, posted, rating, text, author, photo, link):
-        self.places_id: str = places_id
-        self.posted: str = posted
-        self.rating: float = rating
-        self.text: str = text
-        self.author: str = author
-        self.photo: str = photo
-        self.link: str = link
 
 class City:
 
@@ -547,29 +357,62 @@ class City:
         self.gpt: str = ""  # ChatGPT's analysis and summary of relevant Reddit comments
         self.score: int = 0
 
+
     def __str__(self):
         return self.name + ", " + self.state
 
-def reddit():
-    """Main Program loop - START HERE"""
-    # city = City(str(input("What city would you like to explore? ")).lower())
-    open('debug.txt', 'w').close()
-    city = City("Charlotte", "NC")
-    search = SearchReddit(city.name)
-    subreddit, exact_match = search.find_subreddit()
 
-    if not exact_match:
-        logging.info(f"No exact subreddits found for: {city}. Showing results for closest found: {subreddit}")
+class MainProgram:
 
-    search.scrape_subreddit()
+    def __init__(self):
+        self.city: City = self.start()
+        self.trulia = Trulia(self.city.name, self.city.state)
+        self.reddit = SearchReddit(self.city.name)
+        self.places = GooglePlaces(self.city)
+
+    def __str__(self):
+        return "Menu"
+
+    def start(self):
+        """Main Program loop - START HERE"""
+
+        print('''Welcome to Moving Buddy. This program is meant to assist in researching cities to move to.\n
+    This program will use a variety of sources to determine city desirability including Reddit, 
+    ChatGPT, Trulia, Google Places and Directions API.\n''')
+        print('''Future roadmap is to support compartmentalization of features to allow users to only use one feature 
+    at a time. Current functionality is to ask users for a city and then run all the features mentioned above.\n''')
+
+        # city = input('Please enter a city name to research: ')
+        # state = input('What state is this city in? Please enter the abbreviation:  ')
+
+        self.city = City("Charlotte", "NC")
+
+        return self.city
+
+    def search_reddit(self):
+        subreddit, exact_match = self.reddit.find_subreddit()
+
+        if not exact_match:
+            logging.info(f"No exact subreddits found for: {self.city.name}. "
+                         f"Showing results for closest found: {subreddit}")
+
+        self.reddit.scrape_subreddit()
+
+    def search_places(self):
+        terms = ['ethnic food', 'asian restaurants', 'grocery stores', 'hospitals']
+
+        for term in terms:
+            print(term)
+            self.places.search(term)
+
+
+
 
 def main():
     open('debug.txt', 'w').close()
     city = City("Charlotte", "NC")
     trulia = Trulia(city.name, "NC")
     trulia.search()
-
-
 
 if __name__ == '__main__':
     main()

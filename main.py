@@ -1,21 +1,20 @@
 from bot_classes import *
 
-def intro():
-    print('''Welcome to Moving Buddy. This program is meant to assist in researching cities to move to.\n
-    This program will use a variety of sources to determine city desirability including Reddit, 
-    ChatGPT, Trulia, Google Places and Directions API.\n''')
-    print('''Future roadmap is to support compartmentalization of features to allow users to only use one feature 
-    at a time. Current functionality is to ask users for a city and then run all the features mentioned above.\n''')
+def clear_logs():
+    open('debug.txt', 'w').close()
 
 def main():
-    # city = input('Please enter a city name to research: ')
-    # state = input('What state is this city in? Please enter the abbreviation:  ')
+    moving_buddy = MainProgram()
+    clear_logs()
 
-    city = City("Charlotte", "NC")
+    # 1. Search Trulia for Homes
+    # moving_buddy.trulia.search()
 
-    trulia = Trulia(city.name, city.state)
-    trulia.search()
+    # print(f"Successfully collected data for {moving_buddy.trulia.parsed_homes} homes.")
+
+    # moving_buddy.search_reddit()
+
+    moving_buddy.search_places()
 
 if __name__ == '__main__':
-    intro()
     main()

@@ -124,11 +124,9 @@ class DB: #Database
             last_item = list(values.values())[-1]
             data = []
 
-            logging.debug(f'Attempting to add {values.values()} to SQL query. Last item: {last_item}')
-
             for value in values.values():
                 query += "?, " if last_item is not value else "?)"
-                data.append(str(value) if isinstance(value, Comment) else value)
+                data.append(str(value) if isinstance(value, Comment) or value is None else value)
             cursor.execute(query, data)
 
         else:
@@ -142,6 +140,12 @@ class DB: #Database
 
         conn.commit()
         cursor.close()
+
+def check(characteristic) -> str:
+    if KeyError or TypeError:
+        return "Not found"
+    else:
+        return characteristic
 
 def main():
     sql = DB()

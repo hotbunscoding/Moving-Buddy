@@ -2,8 +2,7 @@ import json
 import requests
 from bs4 import BeautifulSoup
 import logging
-from SQL import DB
-
+from SQL import DB, check
 
 headers = {
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36",
@@ -54,6 +53,7 @@ class Trulia:
         self.state: str = state
         self.base_url = "https://www.trulia.com"
         self.data: dict = {}
+        self.parsed_homes: int = 0
         self.current_link: str = "/".join(["https://www.trulia.com", self.state, self.city])
         self.current_page: int = 1
         self.on_last_page: bool = False
@@ -65,16 +65,17 @@ class Trulia:
         """Trulia will have the link to the next page under the following elements.
         If no elements are found, then we have reached the last page, and we return.
         Otherwise, we conduct another search"""
+
         self.current_page += 1
 
         nav = soup.find("nav", attrs={'aria-label': 'search results pagination'})
         nav = nav.find("li", attrs={'data-testid': "pagination-next-page"})
-        self.current_link = self.base_url + nav.find_all("a", href=True)[0]['href'] if not None else ""
 
         if not nav:
             self.on_last_page = True
             return
         else:
+            self.current_link = self.base_url + nav.find_all("a", href=True)[0]['href']
             self.on_last_page = False
             self.search()
 
@@ -115,20 +116,18 @@ class Trulia:
     def initialize_homes(self):
         logging.debug("Initializing homes...")
         for home in self.data['searchData']['homes']:
-            try:
-                for size, link in home['media']['heroImage']['url'].items():
-                    picture = Picture(home, size, link)
 
-                home = Home(home['location']['streetAddress'], home['location']['stateCode'], home['location']['city'],
-                            home['location']['zipCode'], home['url'], home['description']['value'],
-                            home['bedrooms']['formattedValue'],
-                            home['bathrooms']['formattedValue'], home['floorSpace']['formattedDimension'],
-                            home['price']['price'],  home['media']['heroImage']['url']['medium'], home['currentStatus']['isActiveForSale'])
+            self.parsed_homes += 1
 
-                # print(home.zip_code + " " + home.city + " " + home.state + " " + home.address)
-            except (TypeError, KeyError) as e:
-                logging.info(f"Item not found: {e}")
-                continue
+            for size, link in home['media']['heroImage']['url'].items():
+                picture = Picture(home, check(size), check(link))
+
+            home = Home(check(home['location']['streetAddress']), check(home['location']['stateCode']),
+                        check(home['location']['city']), check(home['location']['zipCode']),
+                        check(home['url']), check(home['description']['value']),
+                        check(home['bedrooms']['formattedValue']), check(home['bathrooms']['formattedValue']),
+                        check(home['floorSpace']['formattedDimension']), check(home['price']['price']),
+                        check(home['media']['heroImage']['url']['medium']), check(home['currentStatus']['isActiveForSale']))
 
             DB.write("Homes", vars(home))
 
