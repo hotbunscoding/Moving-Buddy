@@ -387,7 +387,7 @@ class MainProgram:
 
         self.city = City("Charlotte", "NC")
 
-        return self.city
+        return self.city # lol
 
     def search_reddit(self):
         subreddit, exact_match = self.reddit.find_subreddit()
