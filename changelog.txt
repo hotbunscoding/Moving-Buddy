@@ -1,6 +1,15 @@
 11/13/24:
 
-- Added error handling when initializing place objects
+Bug Fixes:
+
+- Fixed Home not being added to database due to lack of description
+- Introduced retry logic when failing to connect to Trulia
+
+Improvements:
+
+- Added functionality to webscrape Trulia and collect data on homes within a given city
+- Introduced main program loop for ease of readability
+- Added Google Maps driving and walking score
 
 11/4/24
 
