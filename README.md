@@ -12,6 +12,10 @@ ChatGPT - Functional on its own, needs to be integrated with the main script
 
 Google Places - Functional, needs to be integrated
 
+Google Maps - Functional, need to implement scoring system
+
+Trulia - Mostly functional, need to improve error catching when data is missing
+
 SQL Features - Mostly functional
 
 **Roadmap:**
