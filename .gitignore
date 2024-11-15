@@ -1,7 +1,10 @@
-/secrets.py
+/api_secrets.py
 *.log
 *.sql
 *.db
 debug.txt
 /debug.txt
+website/main.py
+api_secrets.py
 secrets.py
+/secrets.py

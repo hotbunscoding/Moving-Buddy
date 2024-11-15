@@ -1,3 +1,12 @@
+11/x/24:
+
+Bug Fixes:
+
+Improvements:
+
+- Cleaned up redundant classes in gmaps.py into one base class
+- Implemented SQL support for Places results
+
 11/13/24:
 
 Bug Fixes:

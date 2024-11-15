@@ -3,9 +3,9 @@ import praw
 import requests
 import requests.auth
 from SQL import *
-from gmaps import GooglePlaces
-from secrets import *
-from trulia import Trulia, Home
+from gplaces import GooglePlaces
+from api_secrets import *
+from trulia import Trulia
 from final_results import *
 
 
@@ -16,6 +16,8 @@ logging.basicConfig(filename='debug.txt',
                     format='%(asctime)s %(levelname)s: %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p')
 
+def x(home):
+    home.get()
 
 def check(characteristic) -> str:
     if KeyError or TypeError:
@@ -110,7 +112,6 @@ class ChatGPT:
             for comment in self.relevant_comments:
                 try:
                     DB.write('Comments', vars(comment))
-                    logging.debug("Comment saved successfully")
                 except Exception as e:
                     logging.error(f'An error occurred: {e}. Comment not saved. Continuing...')
                     continue
@@ -385,7 +386,7 @@ class MainProgram:
         # city = input('Please enter a city name to research: ')
         # state = input('What state is this city in? Please enter the abbreviation:  ')
 
-        self.city = City("Charlotte", "NC")
+        self.city = City("Columbus", "OH")
 
         return self.city # lol
 
@@ -398,21 +399,13 @@ class MainProgram:
 
         self.reddit.scrape_subreddit()
 
-    def search_places(self):
-        terms = ['ethnic food', 'asian restaurants', 'grocery stores', 'hospitals']
+    def search_places(self, *supplied_term, all_options=False):
+
+        if all_options:
+            terms = ['ethnic food', 'asian restaurants', 'grocery stores', 'hospitals']
+        else:
+            terms = supplied_term
 
         for term in terms:
             print(term)
             self.places.search(term)
-
-
-
-
-def main():
-    open('debug.txt', 'w').close()
-    city = City("Charlotte", "NC")
-    trulia = Trulia(city.name, "NC")
-    trulia.search()
-
-if __name__ == '__main__':
-    main()

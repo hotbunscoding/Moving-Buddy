@@ -33,6 +33,7 @@ class Home:
     def __str__(self):
         return self.address
 
+
 class Picture:
     table = "Pictures"
 
@@ -117,19 +118,20 @@ class Trulia:
         logging.debug("Initializing homes...")
         for home in self.data['searchData']['homes']:
 
-            self.parsed_homes += 1
+                self.parsed_homes += 1
+                print(home)
+                for size, link in home['media']['heroImage']['url'].items():
+                    picture = Picture(home, check(size), check(link))
 
-            for size, link in home['media']['heroImage']['url'].items():
-                picture = Picture(home, check(size), check(link))
+                home = Home(home.get('location', {}).get('streetAddress'), home.get('location').get('stateCode'),
+                     home.get('location', {}).get('city'), home.get('location', {}).get('zipCode'), home.get('url'),
+                     home.get('description', {}).get('value'), home.get('bedrooms', {}).get('formattedValue'),
+                     home.get('bathrooms', {}).get('formattedValue'), home.get('floorSpace').get('formattedDimension'),
+                     home.get('price', {}).get('price'),
+                     home.get('media', {}).get('heroImage', {}).get('url', {}).get('medium'),
+                     home.get('currentStatus', {}).get('isActiveForSale'))
 
-            home = Home(check(home['location']['streetAddress']), check(home['location']['stateCode']),
-                        check(home['location']['city']), check(home['location']['zipCode']),
-                        check(home['url']), check(home['description']['value']),
-                        check(home['bedrooms']['formattedValue']), check(home['bathrooms']['formattedValue']),
-                        check(home['floorSpace']['formattedDimension']), check(home['price']['price']),
-                        check(home['media']['heroImage']['url']['medium']), check(home['currentStatus']['isActiveForSale']))
-
-            DB.write("Homes", vars(home))
+                DB.write("Homes", vars(home))
 
 
 

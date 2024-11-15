@@ -1,6 +1,5 @@
 import sqlite3 as sql
 import logging
-from praw.models import Comment
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='debug.txt',
@@ -23,14 +22,14 @@ class DB: #Database
             conn = sql.connect('test.db')
             cursor = conn.cursor()
 
-            restaurants = ("CREATE TABLE IF NOT EXISTS Restaurants( "
-          "Name VARCHAR(100),"
+            places = ("CREATE TABLE IF NOT EXISTS Places( "
           "places_id VARCHAR(200),"
           "address VARCHAR(200),"
           "rating FLOAT,"
           "website VARCHAR(200),"
           "price_range VARCHAR(30),"
           "review_count INTEGER,"
+          "Name VARCHAR(100),"
           "category VARCHAR(75),"
           "reviews VARCHAR(75))")
 
@@ -78,7 +77,7 @@ class DB: #Database
                         "Available BOOLEAN,"
                         "Score INTEGER)")
 
-            cursor.execute(restaurants)
+            cursor.execute(places)
             cursor.execute(reviews)
             cursor.execute(cities)
             cursor.execute(comments)
@@ -101,13 +100,13 @@ class DB: #Database
         cursor = conn.cursor()
 
         reviews_query = "INSERT INTO Reviews VALUES("
-        restaurants_query = "INSERT INTO Restaurants VALUES("
+        places_query = "INSERT INTO Places VALUES("
         cities_query = "INSERT INTO Cities VALUES("
         comments_query = "INSERT INTO Comments VALUES("
         homes_query = "INSERT INTO Homes VALUES("
 
-        if table.lower() == "restaurants":
-            query = restaurants_query
+        if table.lower() == "places":
+            query = places_query
         elif table.lower() == "cities":
             query = cities_query
         elif table.lower() == "comments":
@@ -126,7 +125,7 @@ class DB: #Database
 
             for value in values.values():
                 query += "?, " if last_item is not value else "?)"
-                data.append(str(value) if isinstance(value, Comment) or value is None else value)
+                data.append(str(value) if not isinstance(value, (int, float, bool)) or value is None else value)
             cursor.execute(query, data)
 
         else:
